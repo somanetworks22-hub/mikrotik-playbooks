@@ -1,0 +1,41 @@
+---
+- name: Generacion y Extraccion de Backups MikroTik
+  hosts: all
+  gather_facts: false
+
+  tasks:
+    - name: Obtener fecha y hora del sistema local
+      ansible.builtin.setup:
+        filter: "ansible_date_time"
+      delegate_to: localhost
+
+    - name: Generar export compact en texto plano
+      community.routeros.command:
+        commands:
+          - /export compact file=backup_ansible.rsc
+          - /system backup save name=backup_ansible.backup
+      register: backup_generation
+
+    - name: Extraer archivo de texto plano (.rsc)
+      ansible.builtin.command: >
+        sshpass -p "{{ ansible_password }}" scp -o StrictHostKeyChecking=no
+        {{ ansible_user }}@{{ inventory_hostname }}:backup_ansible.rsc
+        /tmp/{{ inventory_hostname }}_config.rsc
+      delegate_to: localhost
+      changed_when: true
+
+    - name: Leer contenido de la configuracion para auditoria
+      ansible.builtin.slurp:
+        src: "/tmp/{{ inventory_hostname }}_config.rsc"
+      register: rsc_content
+      delegate_to: localhost
+
+    - name: Limpiar archivos temporales en el almacenamiento flash del MikroTik
+      community.routeros.command:
+        commands:
+          - /file remove backup_ansible.rsc
+          - /file remove backup_ansible.backup
+
+    - name: Publicar salida resumida
+      ansible.builtin.debug:
+        msg: "Backup generado con exito para {{ inventory_hostname }}. Lineas exportadas: {{ (rsc_content['content'] | b64decode).splitlines() | length }}"

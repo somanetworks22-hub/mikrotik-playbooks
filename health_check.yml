@@ -1,0 +1,16 @@
+---
+- name: Diagnostico y Salud MikroTik (Solo Lectura)
+  hosts: all
+  gather_facts: false
+
+  tasks:
+    - name: Consultar recursos del sistema
+      community.routeros.command:
+        commands:
+          - /system resource print
+          - /system health print
+      register: system_status
+
+    - name: Mostrar reporte de estado
+      ansible.builtin.debug:
+        var: system_status.stdout_lines

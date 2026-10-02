@@ -1,5 +1,5 @@
 ---
-- name: Extraer configuración de MikroTik y enviar a n8n
+- name: Auditoría MikroTik - Extracción Optimizada
   hosts: all
   gather_facts: no
   tasks:
@@ -9,13 +9,24 @@
           - /export hide-sensitive terse
       register: r_config
 
-    - name: Enviar configuración a n8n vía Webhook
+    - name: Limpiar datos masivos (Address Lists, Leases, PPP Secrets)
+      ansible.builtin.set_fact:
+        # (?m) activa el modo multilínea para que ^ y $ coincidan con cada línea.
+        # Borramos cualquier línea que contenga "address-list" o "lease"
+        config_limpia: >-
+          {{ 
+            r_config.stdout[0] 
+            | regex_replace('(?m)^.*address-list.*$\n', '') 
+            | regex_replace('(?m)^.*dhcp-server lease.*$\n', '') 
+            | regex_replace('(?m)^.*ppp secret.*$\n', '') 
+          }}
+
+    - name: Enviar configuración filtrada a n8n vía Webhook
       ansible.builtin.uri:
-        url: "http://[tu-servidor-n8n]/webhook/mikrotik-audit"
+        url: "http://45.171.166.15:5678//webhook/mikrotik-audit"
         method: POST
         body_format: json
         body:
           router_ip: "{{ inventory_hostname }}"
-          configuracion: "{{ r_config.stdout[0] }}"
-      # Ignorar errores de certificado si n8n usa HTTPS autofirmado (opcional)
+          configuracion: "{{ config_limpia }}"
       validate_certs: no

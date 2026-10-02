@@ -1,0 +1,21 @@
+---
+- name: Extraer configuración de MikroTik y enviar a n8n
+  hosts: all
+  gather_facts: no
+  tasks:
+    - name: Ejecutar export en RouterOS
+      community.network.routeros_command:
+        commands:
+          - /export hide-sensitive terse
+      register: r_config
+
+    - name: Enviar configuración a n8n vía Webhook
+      ansible.builtin.uri:
+        url: "http://[tu-servidor-n8n]/webhook/mikrotik-audit"
+        method: POST
+        body_format: json
+        body:
+          router_ip: "{{ inventory_hostname }}"
+          configuracion: "{{ r_config.stdout[0] }}"
+      # Ignorar errores de certificado si n8n usa HTTPS autofirmado (opcional)
+      validate_certs: no
